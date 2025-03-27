@@ -1,6 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { PDFDocument } from "pdf-lib";
-import { Columns } from "lucide-react";
+import { Columns, Images } from "lucide-react";
 
 const App = () => {
   const [images, setImages] = useState([]);
@@ -9,6 +9,10 @@ const App = () => {
     const files = Array.from(event.target.files);
     setImages(files);
     // console.log(files);
+  };
+
+  const handleDelete = (index) => {
+    setImages(images.filter((_, i) => i !== index));
   };
 
   const convertToPDF = async () => {
@@ -34,6 +38,8 @@ const App = () => {
     link.click();
   };
 
+  useEffect(() => {}, [images]);
+
   return (
     <div
       style={{
@@ -56,6 +62,7 @@ const App = () => {
           {images.map((img, index) => (
             <li key={index} style={{ fontSize: "14px", color: "#333" }}>
               {img.name}
+              <button onClick={() => handleDelete(index)}>Delete</button>
             </li>
           ))}
         </ul>
