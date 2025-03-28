@@ -1,15 +1,25 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { PDFDocument } from "pdf-lib";
-import { Columns, Images } from "lucide-react";
+import { useDropzone } from "react-dropzone";
+import "./App.css";
 
 const App = () => {
   const [images, setImages] = useState([]);
+  const [size, setSize] = useState("original");
 
-  const handleFileChange = (event) => {
-    const files = Array.from(event.target.files);
-    setImages(files);
-    // console.log(files);
+  const handleSize = (e) => {
+    setSize(e.target.value);
+    console.log(size);
   };
+
+  const onDrop = useCallback((acceptedFiles) => {
+    const newImages = acceptedFiles.map((file) => ({
+      file,
+      preview: URL.createObjectURL(file),
+    }));
+
+    setImages((prev) => [...prev, ...newImages]);
+  }, []);
 
   const handleDelete = (index) => {
     setImages(images.filter((_, i) => i !== index));
@@ -19,12 +29,33 @@ const App = () => {
     const pdfDoc = await PDFDocument.create();
 
     for (const imgFile of images) {
-      const imgBytes = await imgFile.arrayBuffer();
-      const img = await pdfDoc
-        .embedJpg(imgBytes)
-        .catch(() => pdfDoc.embedPng(imgBytes));
+      const imgBytes = await imgFile.file.arrayBuffer();
+      let img;
 
-      const { width, height } = img.scale(1);
+      if (
+        imgFile.file.type === "image/jpeg" ||
+        imgFile.file.type === "image/jpg"
+      ) {
+        img = await pdfDoc.embedJpg(imgBytes);
+      } else if (imgFile.file.type === "image/png") {
+        img = await pdfDoc.embedPng(imgBytes);
+      }
+
+      let height;
+      let width;
+
+      if (size === "original") {
+        const imgScale = img.scale(1);
+        height = imgScale.height;
+        width = imgScale.width;
+      } else if (size === "a4p") {
+        height = 2480;
+        width = 3508;
+      } else if (size === "a4l") {
+        height = 2480;
+        width = 3508;
+      }
+
       const page = pdfDoc.addPage([width, height]);
       page.drawImage(img, { x: 0, y: 0, width, height });
     }
@@ -33,55 +64,121 @@ const App = () => {
     const blob = new Blob([pdfBytes], { type: "application/pdf" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-
     link.download = "images.pdf";
     link.click();
+
+    setImages([]);
+    console.log(images);
   };
 
-  useEffect(() => {}, [images]);
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      "image/png": [],
+      "image/jpeg": [],
+      "image/jpg": [],
+    },
+    multiple: true,
+  });
 
   return (
     <div
       style={{
         display: "flex",
         flexDirection: "column",
-        justifyContent: "center",
         alignItems: "center",
+        justifyContent: "center",
         height: "100vh",
+        gap: "10px",
       }}
     >
-      <p>File is converted on your machine.We dont store any of your data</p>
-      <div style={{ border: "1px solid grey", padding: "20px" }}>
-        <input
-          type="file"
-          multiple
-          accept="image/*"
-          onChange={handleFileChange}
-        />
-        <ul>
-          {images.map((img, index) => (
-            <li key={index} style={{ fontSize: "14px", color: "#333" }}>
-              {img.name}
-              <button onClick={() => handleDelete(index)}>Delete</button>
-            </li>
-          ))}
-        </ul>
-        <button
-          onClick={convertToPDF}
-          disabled={images.length === 0}
-          style={{
-            padding: "10px 20px",
-            marginTop: "10px",
-            backgroundColor: "blue",
-            color: "white",
-            border: "none",
-            borderRadius: "5px",
-            cursor: "pointer",
-          }}
-        >
-          Convert to PDF
-        </button>
+      <p style={{ fontSize: "14px", color: "#555" }}>
+        File is converted on your machine. We don’t store any data.
+      </p>
+
+      <div className="dropdown">
+        <select value={size} onChange={handleSize}>
+          <option value={"original"}>Original Size</option>
+          <option value={"a4p"}>Fit to A4 potrait</option>
+          <option value={"a4l"}>Fit to A4 landscape</option>
+        </select>
       </div>
+
+      <div
+        {...getRootProps()}
+        style={{
+          border: "2px dashed grey",
+          padding: "20px",
+          textAlign: "center",
+          cursor: "pointer",
+        }}
+      >
+        <input {...getInputProps()} />
+        {isDragActive ? (
+          <p style={{ width: "290.7px" }}>Drop the files here...</p>
+        ) : (
+          <p>Drag & drop or click to upload images</p>
+        )}
+      </div>
+
+      <ul style={{ listStyleType: "none" }}>
+        {images.map((img, index) => (
+          <li key={index}>
+            <div
+              style={{
+                width: "500px",
+                height: "150px",
+                display: "flex",
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                backgroundColor: "#f1f1f1",
+                padding: "0px 10px",
+                marginTop: "5px",
+              }}
+            >
+              <img
+                src={img.preview}
+                style={{
+                  width: "125px",
+                  height: "140px",
+                  objectFit: "contain",
+                }}
+              />
+              <p style={{ color: "black" }}>{img.file.name}</p>
+              <button
+                onClick={() => handleDelete(index)}
+                style={{
+                  background: "red",
+                  color: "white",
+                  border: "none",
+                  padding: "5px",
+                  borderRadius: "5px",
+                  cursor: "pointer",
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </li>
+        ))}
+      </ul>
+
+      <button
+        onClick={convertToPDF}
+        disabled={images.length === 0}
+        style={{
+          padding: "10px 20px",
+          backgroundColor: images.length ? "blue" : "gray",
+          color: "white",
+          border: "none",
+          borderRadius: "5px",
+          cursor: images.length ? "pointer" : "not-allowed",
+          marginTop: "10px",
+        }}
+      >
+        Convert to PDF
+      </button>
     </div>
   );
 };
